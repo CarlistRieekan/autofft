@@ -100,6 +100,7 @@ function [spectrum, freq, setup] = autofft(xs, ts, fftset)
 %        - 'rsd','rmssd'  - root mean square of power spectral density 
 %
 % Changelist
+% v1.2.6 - TO DO
 % v1.2.5a- Outputs which appeared twice in setup now appear only once.
 % v1.2.5 - An optional highpass filtering has been implemented.
 % v1.2.4b- Overlap length (in samples) returned in setup is now correct.
@@ -112,13 +113,13 @@ function [spectrum, freq, setup] = autofft(xs, ts, fftset)
 %        - Accuracy of PSD and RMSSD estimates has been slightly improved.
 %        - Dealing with a content at the Nyquist frequency has been improved.
 % v1.2.3 - User can define frequency resolution of the analyser.
-%       - The window function can be directly specified as a vector.
-%       - The analyser setup can be returned as an output variable.
-%       - Warning messages are now displayed.
+%        - The window function can be directly specified as a vector.
+%        - The analyser setup can be returned as an output variable.
+%        - Warning messages are now displayed.
 % v1.2.2a- Error occuring during peak hold averaging has been fixed.
 % v1.2.2 - The Kaiser-Bessel window parameter (beta) can now be specified.
-%       - Autospectrum is now properly square of RMS rather than 0-Pk.
-%       - Relations for evaluation of PSD and RMSPSD now consider the noise
+%        - Autospectrum is now properly square of RMS rather than 0-Pk.
+%        - Relations for evaluation of PSD and RMSPSD now consider the noise
 %         power bandwidth of the used window function. 
 % v1.2.1 - New function - low-pass filtering
 %        - New types of averaging - no averaging     ('none')
@@ -128,31 +129,31 @@ function [spectrum, freq, setup] = autofft(xs, ts, fftset)
 %        - Relations for evaluation of PSD amd RMSPSD have been fixed.
 %        - Dealing with a content at the Nyquist frequency has been fixed.
 % v1.2.0 - Input parameters are now specified in a structured variable.
-%        - v1.2 is not compatible with v1.12 and older versions!
+%        - v1.2 is not compatible with v1.1.2 and older versions!
 % v1.1.2 - Input can now be an array.
 % v1.1.1 - Performance optimization
 %        - Handling of input vectors with the even number of samples has
 %          been fixed.
 % v1.1.0 - Handling of non-uniform window functions has been fixed.
 %        - Parameters nwin and overlap can now be skipped by user.
-%
+
 %% nargin check
 if nargin < 2
     error('Not enough input arguments.');
 elseif nargin > 3
     error('Too many input arguments.');
 end
-%
+
 %% Convert row vectors to column vectors if needed
 if size(xs, 1) == 1         % samples
     xs = xs(:);                     
 end
 if size(ts(:), 1) == 1      % sampling frequency
-	fs = ts;                    
+    fs = ts;                    
 else
     fs = 1 / (ts(2) - ts(1)); 
 end
-%
+
 %% Specify the default setup
 defset = struct('nwin', size(xs, 1), ...
                 'overlap', 50, ...
@@ -163,7 +164,7 @@ defset = struct('nwin', size(xs, 1), ...
                 'jw', '1', ...
                 'unit', 'pow');
 deffields = fieldnames(defset);
-%
+
 %% Set analyser parameters
 if nargin == 2  % use default fftset
     fftset = defset;
@@ -204,13 +205,24 @@ else            % use user-defined fftset
         end
     end
 end
+
 % Generate frequency vector
-freq = (fs * (0:(fftset.nwin/2)) / fftset.nwin)';
+switch lower(fftset.mode)
+    case 'twosided'     % Two-sided spectrum
+        freq = (fs * (-(fftset.nwin/2):(fftset.nwin/2)) / fftset.nwin)';
+    case 'zoom'         % Spectral zoom
+        % TO DO
+    otherwise           % One-sided spectrum
+        freq = (fs * (0:(fftset.nwin/2)) / fftset.nwin)';
+end
+
 % Set allowed frequencies for the limitation of the maximum freqeuncy
 freq = freq(freq <= fftset.lowpass);
 maxf = size(freq, 1);
+
 % Calculate number of overlaping samples
 fftset.overlap = round(fftset.nwin * fftset.overlap / 100);
+
 % Set indices for the signal segmentation
 imax = floor((size(xs, 1)-fftset.overlap) / (fftset.nwin-fftset.overlap));
                                                 % number of windows
@@ -222,6 +234,7 @@ for i = 1:imax                                  % cycle through windows
     ind(i,2) = ni;
     ni = ni - fftset.overlap + 1;
 end
+
 % Generate a structure array containing the analyser setup
 setup = struct("SamplingFrequency",    fs, ...
                "DataDuration",         size(xs, 1) / fs, ...
@@ -239,6 +252,7 @@ setup = struct("SamplingFrequency",    fs, ...
                "NumberOfAverages",     imax, ...
                "SpectralUnit",         "power", ...
                "jwWeigthing",          "none");
+
 % Set a window function
 if isnumeric(fftset.window)
     % Use the custom user-specified window function
@@ -266,6 +280,7 @@ else
     % Generate the window function internally
     [fftset.window, setup.Window] = windowfunc(fftset.window, fftset.nwin);
 end
+
 % Normalise the window function for correct magnitude estimation
 fftset.window = fftset.window / mean(fftset.window);
 % Calculate the noise power bandwidth of the window function in Hz
@@ -327,6 +342,7 @@ switch lower(fftset.jw)
     otherwise
         tSpectrum(1:maxf, :, :) = tSpectrum(1:maxf, :, :) / fftset.nwin;
 end
+
 % Evaluation of spectral unit
 switch lower(fftset.unit)
     case 'rms'           % Linear spectrum with rms magnitude
@@ -356,6 +372,7 @@ switch lower(fftset.unit)
         tSpectrum(1,:,:)      = tSpectrum(1,:,:) .* conj(tSpectrum(1,:,:));
         tSpectrum(2:maxf,:,:) = 2 * tSpectrum(2:maxf,:,:) .* conj(tSpectrum(2:maxf,:,:));
 end
+
 % Spectral averaging and the limitation of the maximum frequency
 switch lower(fftset.averaging)
     case {'energy', 'rms'}     % Energy averaging
@@ -382,6 +399,7 @@ switch lower(fftset.averaging)
         spectrum = mean(tSpectrum(1:maxf,:,:), 3);
         setup.Averaging = "linear";
 end
+
 % End of main fucntion
 end
 %
